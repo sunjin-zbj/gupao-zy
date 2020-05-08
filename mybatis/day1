@@ -1,1 +1,177 @@
 
+题目：[2020-05-06] MyBatis应用分析与最佳实践
+1、为什么要用MyBatis？MyBatis解决了什么问题？
+
+  原生的jdbc操作数据库存在以下问题
+  一、connection 没有统一的管理容易造成链接的不可控
+  二、sql 硬编码问题，业务和非业务功能耦合再了一起，sql条件的拼接太过繁琐
+  三、resultSet 得手动影射到 pojo 当pojo属性是复合属性时影射繁琐
+  四、从注册驱动到结果集影射存在大量重复代码
+  
+  MyBatis解决了什么问题
+  一、connection 统一进行了管理，当然也可以用其它的连接池
+  二、sql的编写有更多的选择注释或者xml，xml解决了sql也非业务功能的耦合。同时mybatis提供了动态sql标签方便的条件sql的拼接
+  三、结果集影射到pojo更新灵活，提供了嵌套结果集和嵌套查询。
+  四、配置集中管理
+
+
+2、一个商户，在登记的时候需要注册它的经营范围。比如1手机，2电脑，3相机，4平板，在界面上是一个复选框(checkbox)。
+
+在数据库保存的是用逗号分隔的字符串，例如“1,3,4”，而返回给程序的时候是整形数组List<Integer> {1,3,4}。
+
+实现一个TypeHandler，可以把List<Integer>转换成数据库的varchar。把数据库的vachar转换成List<Integer>。
+
+需要创建一张表、创建POJO、Mapper、xml映射器。
+
+实体：
+
+```java
+@Data
+public class User implements Serializable {
+
+    private Integer id;
+    private List<String> scope;
+}
+```
+
+类型转化器：
+
+```java
+public class StringMapListTypeHandler implements TypeHandler<List<?>> {
+
+    @Override
+    public void setParameter(PreparedStatement preparedStatement, int i, List<?> list, JdbcType jdbcType) throws SQLException {
+        String join = Joiner.on(",").join(list);
+        preparedStatement.setString(i,join);
+    }
+
+    @Override
+    public List<?> getResult(ResultSet resultSet, String s) throws SQLException {
+        String str = resultSet.getString(s);
+        List<String> list = Splitter.on(",").splitToList(str);
+        return list;
+    }
+
+    @Override
+    public List<?> getResult(ResultSet resultSet, int i) throws SQLException {
+        String str = resultSet.getString(i);
+        List<String> list = Splitter.on(",").splitToList(str);
+        return list;
+    }
+
+    @Override
+    public List<?> getResult(CallableStatement callableStatement, int i) throws SQLException {
+        return null;
+    }
+```
+
+控制器：
+
+```java
+@RestController
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    @PostMapping("/user/")
+    public String userHandle(@RequestBody User user){
+        userService.addUserScope(user);
+        return "success";
+    }
+    @GetMapping("/user/{userId}")
+    public User getUser(@PathVariable Integer userId){
+        return userService.getUserById(userId);
+    }
+}
+```
+
+业务层：
+
+```
+@Service
+public class UserServiceImpl implements UserService{
+
+    @Autowired
+    private UserDao userDao;
+
+    @Override
+    public int addUserScope(User user) {
+        return userDao.addUserScope(user);
+    }
+
+    @Override
+    public User getUserById(Integer userId) {
+        return userDao.getUserById(userId);
+    }
+}
+```
+
+DAO层：
+
+```
+@Mapper
+public interface UserDao {
+
+    int addUserScope(User user);
+
+    User getUserById(Integer userId);
+}
+
+```
+
+mapper:
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="com.sunjin.vip.springbootfirst.dao.UserDao">
+
+    <resultMap id="user" type="com.sunjin.vip.springbootfirst.pojo.User">
+        <id column="id" property="id"/>
+        <result column="scope" property="scope" typeHandler="com.sunjin.vip.springbootfirst.mybatis.handler.StringTypeHandler"/>
+    </resultMap>
+
+    <insert id="addUserScope" parameterType="com.sunjin.vip.springbootfirst.pojo.User">
+        insert  into td_user values #{user.scope}
+   </insert>
+
+    <select id="getUserById" resultMap="user" parameterType="integer">
+      select id,scope from td_user where id = #{userId}
+    </select>
+</mapper>
+```
+
+
+
+public class StringMapListTypeHandler implements TypeHandler<List<?>> {
+
+
+
+    @Override
+    public void setParameter(PreparedStatement preparedStatement, int i, List<?> list, JdbcType jdbcType) throws SQLException {
+        String join = Joiner.on(",").join(list);
+        preparedStatement.setString(i,join);
+    }
+
+    @Override
+    public List<?> getResult(ResultSet resultSet, String s) throws SQLException {
+        String str = resultSet.getString(s);
+        List<String> list = Splitter.on(",").splitToList(str);
+        return list;
+    }
+
+    @Override
+    public List<?> getResult(ResultSet resultSet, int i) throws SQLException {
+        String str = resultSet.getString(i);
+        List<String> list = Splitter.on(",").splitToList(str);
+        return list;
+    }
+
+    @Override
+    public List<?> getResult(CallableStatement callableStatement, int i) throws SQLException {
+        return null;
+    }
+
+
