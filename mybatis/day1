@@ -130,7 +130,7 @@ mapper:
 
     <resultMap id="user" type="com.sunjin.vip.springbootfirst.pojo.User">
         <id column="id" property="id"/>
-        <result column="scope" property="scope" typeHandler="com.sunjin.vip.springbootfirst.mybatis.handler.StringTypeHandler"/>
+        <result column="scope" property="scope" typeHandler="com.sunjin.vip.springbootfirst.mybatis.handler.StringMapListTypeHandler"/>
     </resultMap>
 
     <insert id="addUserScope" parameterType="com.sunjin.vip.springbootfirst.pojo.User">
